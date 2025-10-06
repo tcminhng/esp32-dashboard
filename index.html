@@ -1,0 +1,97 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8" />
+  <title>ESP32 Dashboard</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <style>
+    body { font-family: system-ui, sans-serif; max-width: 720px; margin: 2rem auto; }
+    .card { border: 1px solid #ddd; border-radius: 12px; padding: 16px; margin-bottom: 16px; }
+    button { padding: 8px 12px; border-radius: 8px; border: 1px solid #ccc; cursor: pointer; }
+    .row { display: flex; gap: 12px; align-items: center; }
+  </style>
+</head>
+<body>
+  <h1>ESP32 Dashboard</h1>
+
+  <div class="card">
+    <h2>Telemetry</h2>
+    <div>Temp: <span id="temp">--</span> °C</div>
+    <div>Humidity: <span id="hum">--</span> %</div>
+    <div>Distance: <span id="dist">--</span> cm</div>
+    <div>Status: <span id="status">offline</span></div>
+  </div>
+
+  <div class="card">
+    <h2>Controls</h2>
+    <div class="row">
+      <button id="relayBtn">Toggle Relay</button>
+      <span>Current: <span id="relayState">--</span></span>
+    </div>
+    <div class="row" style="margin-top:10px">
+      <button id="backlightBtn">Toggle Backlight</button>
+      <span>Current: <span id="backlightState">--</span></span>
+    </div>
+  </div>
+
+  <script type="module">
+    // --- Replace with your Firebase config ---
+    const firebaseConfig = {
+      apiKey: "AIzaSyDqJqnnDfSVf6L6Avclk5cXifFNep7_da0",
+      authDomain: "tpj655-firebase-demo1.firebaseapp.com",
+      databaseURL: "https://tpj655-firebase-demo1-default-rtdb.firebaseio.com",
+      projectId: "tpj655-firebase-demo1",
+      storageBucket: "tpj655-firebase-demo1.appspot.com",
+      messagingSenderId: "311493885625",
+      appId: "1:311493885625:web:772a7d8e15df3c48d06568",
+      measurementId: "G-6L224S1NVB"
+    };
+
+    const DEVICE_ID = "esp32-01";
+
+    // --- Firebase SDK imports ---
+    import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js";
+    import { getDatabase, ref, onValue, get, child, set } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-database.js";
+    import { getAuth, signInAnonymously, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
+
+    // Initialize Firebase
+    const app = initializeApp(firebaseConfig);
+    const db = getDatabase(app);
+    const auth = getAuth(app);
+
+    const tempEl = document.getElementById('temp');
+    const humEl = document.getElementById('hum');
+    const distEl = document.getElementById('dist');
+    const statusEl = document.getElementById('status');
+    const relayBtn = document.getElementById('relayBtn');
+    const backlightBtn = document.getElementById('backlightBtn');
+    const relayStateEl = document.getElementById('relayState');
+    const backlightStateEl = document.getElementById('backlightState');
+
+    signInAnonymously(auth);
+    onAuthStateChanged(auth, (u) => {
+      if (!u) return;
+
+      // Live telemetry listeners
+      onValue(ref(db, `/devices/${DEVICE_ID}/telemetry/temperature`), s => tempEl.textContent = s.val()?.toFixed?.(1) ?? '--');
+      onValue(ref(db, `/devices/${DEVICE_ID}/telemetry/humidity`), s => humEl.textContent = s.val()?.toFixed?.(1) ?? '--');
+      onValue(ref(db, `/devices/${DEVICE_ID}/telemetry/distance_cm`), s => distEl.textContent = s.val()?.toFixed?.(1) ?? '--');
+      onValue(ref(db, `/devices/${DEVICE_ID}/status/online`), s => statusEl.textContent = s.val() ? 'online' : 'offline');
+
+      // Commands mirror (so UI reflects device state)
+      onValue(ref(db, `/devices/${DEVICE_ID}/commands/relay1`), s => relayStateEl.textContent = String(s.val()));
+      onValue(ref(db, `/devices/${DEVICE_ID}/commands/lcd_backlight`), s => backlightStateEl.textContent = String(s.val()));
+
+      // Buttons toggle Firebase commands
+      relayBtn.onclick = async () => {
+        const snap = await get(child(ref(db), `/devices/${DEVICE_ID}/commands/relay1`));
+        await set(ref(db, `/devices/${DEVICE_ID}/commands/relay1`), !snap.val());
+      };
+      backlightBtn.onclick = async () => {
+        const snap = await get(child(ref(db), `/devices/${DEVICE_ID}/commands/lcd_backlight`));
+        await set(ref(db, `/devices/${DEVICE_ID}/commands/lcd_backlight`), !snap.val());
+      };
+    });
+  </script>
+</body>
+</html>
